@@ -26,7 +26,7 @@ SECRET_KEY = 'django-insecure-#vg@o!w!42r+3qudvsx*ger(d9#r!=5&h)xh8uq^)-5tz0oh-6
 DEBUG = True
 
 ALLOWED_HOSTS = []
-
+APPEND_SLASH = False
 
 # Application definition
 
@@ -38,8 +38,13 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
 
+    # packages
+    'graphene_django',
+    'graphene_file_upload',
+
     # Apps
     'user',
+    'product',
 ]
 
 MIDDLEWARE = [
@@ -81,7 +86,7 @@ DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
         'NAME': "django-shop",
-        'USER': 'mahdiml6',
+        'USER': 'mahdi',
         'PASSWORD': "mahdiml6",
         'PORT': '5432'
     }
@@ -122,15 +127,23 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.0/howto/static-files/
 
-STATIC_URL = 'static/'
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.0/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
-
-MEDIA_URL = '/media/'
 
 AUTH_USER_MODEL = 'user.User'
+
+STATIC_URL = '/static/'
+STATIC_ROOT = os.path.join(BASE_DIR, 'static')
+
+# Media files (Uploaded files)
+MEDIA_URL = '/media/'
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+
+GRAPHENE = {
+    "SCHEMA": "schema.schema"
+}
+
