@@ -1,5 +1,6 @@
 from django.db import models
 from user.models import User
+import json
 
 
 def image_profile_upload_path(instance, filename):
@@ -37,7 +38,7 @@ class Product(models.Model):
     category = models.ForeignKey(Category, on_delete=models.SET_NULL, null=True, related_name='products')
 
     def save(
-            self,*args, **kwargs
+            self, *args, **kwargs
     ):
         if self.slug is None:
 
@@ -47,8 +48,6 @@ class Product(models.Model):
 
         self.new_price = self.price - ((self.price * self.off_percent) / 100)
         super(Product, self).save(*args, **kwargs)
-
-
 
 
 class Image(models.Model):
@@ -65,3 +64,39 @@ class ProductFeature(models.Model):
 class ProductColor(models.Model):
     color = models.CharField(max_length=255)
     product = models.ForeignKey(Product, related_name='colors', on_delete=models.CASCADE)
+
+
+class Comment(models.Model):
+    star_field = (
+        (1, 1),
+        (2, 2),
+        (3, 3),
+        (4, 4),
+        (5, 5),
+    )
+    title = models.CharField(max_length=255)
+    content = models.TextField(max_length=500)
+    star = models.IntegerField(choices=star_field)
+    product = models.ForeignKey(Product, related_name='comments', on_delete=models.CASCADE)
+    user = models.ForeignKey(User, related_name='comments', on_delete=models.CASCADE)
+    created = models.DateTimeField(auto_now_add=True)
+
+
+class CommentLikesOrDislikes(models.Model):
+    like_choice = (
+        ('0', 'liked'),
+        ('1', 'disliked')
+    )
+    user = models.ForeignKey(User, related_name='likesOrDislikes', on_delete=models.CASCADE)
+    comment = models.ForeignKey(Comment, related_name='likesOrDislikes', on_delete=models.CASCADE)
+    content = models.CharField(choices=like_choice)
+
+
+class PositivePoints(models.Model):
+    comment = models.ForeignKey(Comment, related_name='positive_points', on_delete=models.CASCADE)
+    content = models.CharField()
+
+
+class NegativePoints(models.Model):
+    comment = models.ForeignKey(Comment, related_name='negative_points', on_delete=models.CASCADE)
+    content = models.CharField()

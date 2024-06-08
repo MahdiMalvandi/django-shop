@@ -2,6 +2,7 @@ import graphene
 from graphene_django import DjangoObjectType
 from graphene_file_upload.scalars import Upload
 
+
 from .models import *
 from utils.permissions import admin_required
 
@@ -23,6 +24,26 @@ class ProductFeaturesType(DjangoObjectType):
     class Meta:
         model = ProductFeature
         fields = ('name', 'value')
+
+
+class PositivePointsType(DjangoObjectType):
+    class Meta:
+        model = PositivePoints
+        fields = "__all__"
+
+
+class NegativePointsType(DjangoObjectType):
+    class Meta:
+        model = NegativePoints
+        fields = "__all__"
+
+
+class CommentType(DjangoObjectType):
+    class Meta:
+        model = Comment
+        fields = (
+        'title', 'content', 'star', 'positive_points', 'negative_points', 'user', 'product', 'likesOrDislikes')
+
 
 
 class ProductColorsType(DjangoObjectType):
@@ -205,12 +226,15 @@ class DeleteProductMutation(graphene.Mutation):
         slug = graphene.String(required=True)
 
     success = graphene.Boolean(default_value=False)
+
     @staticmethod
     @admin_required
-    def mutate(root, info , slug):
+    def mutate(root, info, slug):
         product = Product.objects.get(slug=slug)
         product.delete()
         return DeleteCategoryMutation(success=True)
+
+
 class Query(graphene.ObjectType):
     categories = graphene.List(CategoryType)
     category = graphene.Field(CategoryType, slug=graphene.String())

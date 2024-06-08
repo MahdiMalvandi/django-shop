@@ -41,10 +41,14 @@ INSTALLED_APPS = [
     # packages
     'graphene_django',
     'graphene_file_upload',
+    "django_filters",
 
     # Apps
     'user',
     'product',
+    'cart',
+
+
 ]
 
 MIDDLEWARE = [

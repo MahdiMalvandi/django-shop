@@ -9,18 +9,34 @@ def user_profile_upload_path(instance, filename):
     return f"profiles/{instance.username}/{filename}"
 
 
+class CustomUserManager(UserManager):
+    def create_user(self, phone_number, username, password=None, **extra_fields):
+        if not phone_number:
+            raise ValueError('The Phone Number field must be set')
+        if not username:
+            raise ValueError('The Username field must be set')
+        user = self.model(phone_number=phone_number, username=username, **extra_fields)
+        user.set_password(password)
+        user.save(using=self._db)
+        return user
+
+    def create_superuser(self, phone_number, username, password=None, **extra_fields):
+        extra_fields.setdefault('is_staff', True)
+        extra_fields.setdefault('is_superuser', True)
+
+        return self.create_user(phone_number, username, password, **extra_fields)
+
+
 class User(AbstractBaseUser, PermissionsMixin):
     """
     An abstract base class implementing a fully featured User model with
     admin-compliant permissions.
 
-    Username, password and email are required. Other fields are optional.
+    Username, password, and phone number are required. Other fields are optional.
     """
 
     first_name = models.CharField(max_length=30)
     last_name = models.CharField(max_length=30)
-    username = models.CharField(max_length=32, unique=True)
-    email = models.EmailField(unique=True)
     phone_number = models.CharField(unique=True, validators=[
         validators.RegexValidator(r'^989[0-3,9]\d{8}$', 'Enter a valid mobile number')
     ])
@@ -34,10 +50,10 @@ class User(AbstractBaseUser, PermissionsMixin):
     is_seller = models.BooleanField(default=False)
     is_superuser = models.BooleanField(default=False)
 
-    USERNAME_FIELD = 'username'
-    REQUIRED_FIELDS = ['email', 'phone_number']
+    USERNAME_FIELD = 'phone_number'
 
-    objects = UserManager()
+
+    objects = CustomUserManager()
 
     class Meta:
         db_table = 'users'
@@ -50,8 +66,7 @@ class User(AbstractBaseUser, PermissionsMixin):
         """
         Returns True if user has actually logged in with valid credentials.
         """
-        return self.phone_number is not None or self.email is not None
-
+        return self.phone_number is not None
 
     @classmethod
     def search(cls, query):
@@ -59,6 +74,4 @@ class User(AbstractBaseUser, PermissionsMixin):
             similarity=TrigramSimilarity('username', query) +
                        TrigramSimilarity('first_name', query) +
                        TrigramSimilarity('last_name', query)
-        ).filter(similarity__gt=0.1).order_by('-similarity')
-
-
+        ).filter(similarity__gt=0.1). order_by('-similarity')
