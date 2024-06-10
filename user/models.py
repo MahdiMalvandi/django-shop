@@ -6,7 +6,7 @@ from django.utils import timezone
 
 
 def user_profile_upload_path(instance, filename):
-    return f"profiles/{instance.username}/{filename}"
+    return f"profiles/{instance.phone_number}/{filename}"
 
 
 class CustomUserManager(UserManager):
@@ -37,6 +37,7 @@ class User(AbstractBaseUser, PermissionsMixin):
 
     first_name = models.CharField(max_length=30)
     last_name = models.CharField(max_length=30)
+    email = models.EmailField(default=None, null=True, blank=True)
     phone_number = models.CharField(unique=True, validators=[
         validators.RegexValidator(r'^989[0-3,9]\d{8}$', 'Enter a valid mobile number')
     ])
@@ -51,7 +52,6 @@ class User(AbstractBaseUser, PermissionsMixin):
     is_superuser = models.BooleanField(default=False)
 
     USERNAME_FIELD = 'phone_number'
-
 
     objects = CustomUserManager()
 
@@ -74,4 +74,4 @@ class User(AbstractBaseUser, PermissionsMixin):
             similarity=TrigramSimilarity('username', query) +
                        TrigramSimilarity('first_name', query) +
                        TrigramSimilarity('last_name', query)
-        ).filter(similarity__gt=0.1). order_by('-similarity')
+        ).filter(similarity__gt=0.1).order_by('-similarity')

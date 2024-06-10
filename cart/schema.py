@@ -46,7 +46,7 @@ class AddProductToCartMutation(graphene.Mutation):
     class Arguments:
         product_slug = graphene.String(required=True)
 
-    data = graphene.Field(CartInfoType)
+    cart_data = graphene.Field(CartInfoType)
     success = graphene.Boolean(default_value=False)
 
     @staticmethod
@@ -54,14 +54,14 @@ class AddProductToCartMutation(graphene.Mutation):
         product = Product.objects.get(slug=product_slug)
         user_cart = Cart(info.context.session)
         user_cart.add(product)
-        return AddProductToCartMutation(data=show_cart(user_cart), success=True)
+        return AddProductToCartMutation(cart_data=show_cart(user_cart), success=True)
 
 
 class RemoveProductFromCartMutation(graphene.Mutation):
     class Arguments:
         product_slug = graphene.String(required=True)
 
-    data = graphene.Field(CartInfoType)
+    cart_data = graphene.Field(CartInfoType)
     success = graphene.Boolean(default_value=False)
 
     @staticmethod
@@ -69,14 +69,14 @@ class RemoveProductFromCartMutation(graphene.Mutation):
         product = Product.objects.get(slug=product_slug)
         user_cart = Cart(info.context.session)
         user_cart.remove(product)
-        return RemoveProductFromCartMutation(data=show_cart(user_cart), success=True)
+        return RemoveProductFromCartMutation(cart_data=show_cart(user_cart), success=True)
 
 
 class DecreaseProductQuantityMutation(graphene.Mutation):
     class Arguments:
         product_slug = graphene.String(required=True)
 
-    data = graphene.Field(CartInfoType)
+    cart_data = graphene.Field(CartInfoType)
     success = graphene.Boolean(default_value=False)
 
     @staticmethod
@@ -84,29 +84,30 @@ class DecreaseProductQuantityMutation(graphene.Mutation):
         product = Product.objects.get(slug=product_slug)
         user_cart = Cart(info.context.session)
         user_cart.decrease(product)
-        return DecreaseProductQuantityMutation(data=show_cart(user_cart), success=True)
+        return DecreaseProductQuantityMutation(cart_data=show_cart(user_cart), success=True)
 
 
 #
 class ClearCartMutation(graphene.Mutation):
-    data = graphene.Field(CartInfoType, required=False)
+    cart_data = graphene.Field(CartInfoType, required=False)
     success = graphene.Boolean(default_value=False)
 
     @staticmethod
     def mutate(root, info):
         user_cart = Cart(info.context.session)
         user_cart.clear()
-        return ClearCartMutation(data=show_cart(user_cart), success=True)
+        return ClearCartMutation(cart_data=show_cart(user_cart), success=True)
 
 
 # endregion mutations
 
 
 class Query(graphene.ObjectType):
-    data = graphene.Field(CartInfoType)
+    cart_data = graphene.Field(CartInfoType)
 
     @staticmethod
-    def resolve_data(root, info):
+    def resolve_cart_data(root, info):
+
         user_cart = Cart(info.context.session)
         return show_cart(user_cart)
 
