@@ -9,11 +9,12 @@ class PermissionDeniedError(GraphQLError):
 
 
 def admin_required(func):
+
     @wraps(func)
     def wrapper(*args, **kwargs):
+
         info = args[1]
         user = info.context.user
-        print(user)
         if not user.is_authenticated or not user.is_staff:
             raise PermissionDeniedError("You do not have permission to perform this action")
         return func(*args, **kwargs)

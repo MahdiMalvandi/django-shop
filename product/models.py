@@ -46,7 +46,10 @@ class Product(models.Model):
         else:
             self.slug = self.slug
 
-        self.new_price = self.price - ((self.price * self.off_percent) / 100)
+        if self.off_percent > 0:
+            self.new_price = self.price - ((self.price * self.off_percent) / 100)
+        else:
+            self.new_price = self.price
         super(Product, self).save(*args, **kwargs)
 
 

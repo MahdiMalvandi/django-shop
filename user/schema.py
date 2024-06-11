@@ -1,5 +1,6 @@
 import graphene
 import graphql_jwt
+from graphene_django_extras import DjangoFilterPaginateListField
 from graphql import GraphQLError
 from graphene_django.types import DjangoObjectType
 from .models import *
@@ -7,21 +8,44 @@ from django.core.cache import cache
 
 from .utils import send_code, check_verification_code
 from graphql_jwt.shortcuts import get_token
+from utils.permissions import admin_required
 
 
 class UserType(DjangoObjectType):
     class Meta:
         model = User
-        fields = ['first_name', 'last_name', 'phone_number', 'profile', 'email', 'date_joined', 'last_seen',
-                  'date_of_birth', 'bio', 'is_staff', 'is_seller', 'is_superuser', ]
+        fields = "__all__"
+        exclude_fields = ["password"]
+        filter_fields = {
+            "id": ("exact",),
+            "first_name": ("icontains", "startswith", 'istartswith', "contains"),
+            "last_name": ("icontains", "istartswith", 'startswith', "contains"),
+            "phone_number": ("icontains", "istartswith", 'startswith', "contains"),
+            "bio": ("icontains", "istartswith", 'startswith', "contains"),
+            "email": ("icontains", "istartswith", 'startswith', "contains"),
+            "date_joined": ("gt", "lt"),
+            "is_seller": ("exact",),
+            "is_superuser": ("exact",),
+            "is_staff": ("exact",),
+            "products__title": ("icontains", "startswith", 'istartswith', "contains", 'exact', 'iexact'),
+            "products__slug": ("icontains", "contains",),
+            "products__new_price": ("gt", "lt"),
+            "products__off_percent": ("gt", "lt"),
+        }
 
 
 class UserQuery(graphene.ObjectType):
-    users = graphene.List(UserType)
+    users = DjangoFilterPaginateListField(UserType)
+    user = graphene.Field(UserType, id=graphene.Int())
 
+    @admin_required
     @staticmethod
     def resolve_users(root, info, **kwargs):
         return User.objects.all()
+
+    @staticmethod
+    def resolve_user(root, info, id, **kwargs):
+        return User.objects.get(id=id)
 
 
 class UserRegisterMutation(graphene.Mutation):
@@ -59,7 +83,6 @@ class UserLoginMutation(graphene.Mutation):
     error = graphene.String(required=False, default_value=None)
     email = graphene.String(required=False, default_value=None)
     token = graphene.String(required=False, default_value=None)
-
 
     @staticmethod
     def mutate(root, info, phone_number=None, email=None, password=None):

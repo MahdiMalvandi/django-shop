@@ -43,8 +43,6 @@ class User(AbstractBaseUser, PermissionsMixin):
     ])
     profile = models.ImageField(upload_to=user_profile_upload_path, blank=True, null=True)
     date_joined = models.DateTimeField('date joined', default=timezone.now)
-    last_seen = models.DateTimeField('last seen date', default=timezone.now)
-
     date_of_birth = models.DateTimeField(null=True, blank=True)
     bio = models.TextField(null=True, blank=True)
     is_staff = models.BooleanField(default=False)

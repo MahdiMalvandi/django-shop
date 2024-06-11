@@ -1,7 +1,9 @@
 import graphene
 from graphene_django import DjangoObjectType
+from graphene_django_extras import DjangoListObjectType, DjangoSerializerType, DjangoFilterPaginateListField
+from graphene_django_extras.paginations import LimitOffsetGraphqlPagination
 from graphene_file_upload.scalars import Upload
-
+from graphql_jwt.decorators import login_required
 
 from .models import *
 from utils.permissions import admin_required
@@ -42,8 +44,7 @@ class CommentType(DjangoObjectType):
     class Meta:
         model = Comment
         fields = (
-        'title', 'content', 'star', 'positive_points', 'negative_points', 'user', 'product', 'likesOrDislikes')
-
+            'title', 'content', 'star', 'positive_points', 'negative_points', 'user', 'product', 'likesOrDislikes')
 
 
 class ProductColorsType(DjangoObjectType):
@@ -62,6 +63,16 @@ class ProductType(DjangoObjectType):
     class Meta:
         model = Product
         fields = '__all__'
+        filter_fields = {
+            "id": ("exact",),
+            "title": ("icontains", "contains", "istartswith", 'startswith'),
+            "slug": ("icontains", "contains",),
+            "new_price": ("gt", "lt"),
+            "off_percent": ("gt", "lt"),
+            "seller__email": ("exact", "istartswith", "icontains", "contains", 'startswith'),
+            "seller__id": ("exact",),
+            "category__name": ("icontains", "startswith", "istartswith", "contains")
+        }
 
 
 # endregion object types
@@ -81,14 +92,13 @@ class ColorInput(graphene.InputObjectType):
 class CategoryMutation(graphene.Mutation):
     class Arguments:
         name = graphene.String(required=True)
-        parent = graphene.String()
+        parent = graphene.String(required=False)
 
-    category = graphene.Field(CategoryType)
+    category = graphene.Field(CategoryType, required=False)
     success = graphene.Boolean(default_value=False)
 
-    @staticmethod
     @admin_required
-    def mutate(root, info, name, parent=None):
+    def mutate(self, info, name, parent=None):
         instance = Category.objects.create(name=name, parent=parent)
         instance.save()
         return CategoryMutation(category=instance, success=True)
@@ -186,7 +196,7 @@ class UpdateProductMutation(graphene.Mutation):
         price = graphene.Int(required=False)
         off_percent = graphene.Int(required=False)
         seller_username = graphene.String(required=False)
-        category_slug = graphene.String(required=True)
+        category_slug = graphene.String(required=False)
         images = graphene.List(Upload, required=False)
         features = graphene.List(FeatureInput, required=False)
         colors = graphene.List(ColorInput, required=False)
@@ -238,7 +248,7 @@ class DeleteProductMutation(graphene.Mutation):
 class Query(graphene.ObjectType):
     categories = graphene.List(CategoryType)
     category = graphene.Field(CategoryType, slug=graphene.String())
-    products = graphene.List(ProductType)
+    products = DjangoFilterPaginateListField(ProductType, pagination=LimitOffsetGraphqlPagination())
     product = graphene.Field(ProductType, slug=graphene.String())
 
     def resolve_categories(parent, info, **kwargs):
