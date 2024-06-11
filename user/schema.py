@@ -1,6 +1,6 @@
 import graphene
 import graphql_jwt
-from graphene_django_extras import DjangoFilterPaginateListField
+from graphene_django_extras import DjangoFilterPaginateListField, LimitOffsetGraphqlPagination
 from graphql import GraphQLError
 from graphene_django.types import DjangoObjectType
 from .models import *
@@ -35,7 +35,7 @@ class UserType(DjangoObjectType):
 
 
 class UserQuery(graphene.ObjectType):
-    users = DjangoFilterPaginateListField(UserType)
+    users = DjangoFilterPaginateListField(UserType, pagination=LimitOffsetGraphqlPagination())
     user = graphene.Field(UserType, id=graphene.Int())
 
     @admin_required
