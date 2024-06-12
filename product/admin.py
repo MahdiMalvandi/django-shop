@@ -30,7 +30,7 @@ class NegativePointsInline(admin.TabularInline):
 
 
 class ColorInline(admin.TabularInline):
-    model = ProductColor
+    model = ProductColor.product.through
     extra = 0
 
 
@@ -54,3 +54,8 @@ class ProductAdmin(admin.ModelAdmin):
 class CommentAdmin(admin.ModelAdmin):
     list_display = ['title', 'created', 'user']
     inlines = [CommentLikesOrDislikesInline, PositivePointsInline, NegativePointsInline]
+
+
+@admin.register(ProductColor)
+class ProductColorAdmin(admin.ModelAdmin):
+    list_display = ['color']

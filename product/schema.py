@@ -1,9 +1,8 @@
 import graphene
 from graphene_django import DjangoObjectType
-from graphene_django_extras import DjangoListObjectType, DjangoSerializerType, DjangoFilterPaginateListField
+from graphene_django_extras import DjangoFilterPaginateListField
 from graphene_django_extras.paginations import LimitOffsetGraphqlPagination
 from graphene_file_upload.scalars import Upload
-from graphql_jwt.decorators import login_required
 
 from .models import *
 from utils.permissions import admin_required
@@ -99,6 +98,8 @@ class CategoryMutation(graphene.Mutation):
 
     @admin_required
     def mutate(self, info, name, parent=None):
+        if Category.objects.filter(name=name).exists():
+            raise Exception("A category with this name already exists")
         instance = Category.objects.create(name=name, parent=parent)
         instance.save()
         return CategoryMutation(category=instance, success=True)
@@ -116,11 +117,17 @@ class UpdateCategoryMutation(graphene.Mutation):
 
     @staticmethod
     @admin_required
-    def mutate(root, info, slug, name=None, parent=None, new_slug=None):
+    def mutate(root, info, slug, name=None, parent_slug=None, new_slug=None):
+        if not Category.objects.filter(slug=slug).exists():
+            raise Exception("A category with this slug does not already exists")
         instance = Category.objects.get(slug=slug)
         instance.slug = new_slug if new_slug is not None else instance.slug
         instance.name = name if name is not None else instance.name
-        instance.parent = parent if parent is not None else instance.parent
+        if parent_slug is not None:
+            parent_category = Category.objects.filter(slug=parent_slug)
+            if not parent_category.exists():
+                raise Exception("There is no category with this slug to be a parent.")
+            instance.parent = parent_category.first() if parent_category.first() is not None else instance.parent
         success = True
         instance.save()
         return UpdateCategoryMutation(category=instance, success=success)
@@ -136,6 +143,8 @@ class DeleteCategoryMutation(graphene.Mutation):
     @staticmethod
     @admin_required
     def mutate(root, info, slug):
+        if not Category.objects.filter(slug=slug).exists():
+            raise Exception("A category with this name does not already exists")
         instance = Category.objects.get(slug=slug)
         instance.delete()
         success = True
@@ -161,6 +170,10 @@ class CreateProductMutation(graphene.Mutation):
     @admin_required
     def mutate(parent, info, title, inventory, price, seller_username, category_slug, images=None, features=None,
                colors=None, off_percent=None, ):
+        if not Category.objects.filter(slug=category_slug).exists():
+            raise Exception("A category with this name does not already exists")
+        if not User.objects.filter(username=seller_username).exists():
+            raise Exception("A User with this username does not already exists")
         category = Category.objects.get(slug=category_slug)
         seller = User.objects.get(username=seller_username)
         product = Product.objects.create(
@@ -176,14 +189,17 @@ class CreateProductMutation(graphene.Mutation):
             for image in images:
                 Image.objects.create(product=product, file=image)
 
-        if features:
-            for feature in features:
-                ProductFeature.objects.create(product=product, name=feature.name, value=feature.value).save()
-
-        if colors:
+        if colors is not None:
+            colors_obj = []
             for color in colors:
-                ProductColor.objects.create(product=product, color=color.color).save()
+                obj, created = ProductColor.objects.get_or_create(color=color['color'])
+                colors_obj.append(obj)
+            product.colors.set(colors_obj)
 
+        if features is not None:
+            ProductFeature.objects.filter(product=product).delete()
+            for feature in features:
+                ProductFeature.objects.get_or_create(product=product, name=feature['name'], value=feature['value'])
         product.save()
         return CreateProductMutation(product=product, success=True)
 
@@ -208,16 +224,20 @@ class UpdateProductMutation(graphene.Mutation):
     @staticmethod
     @admin_required
     def mutate(parent, info, slug, title=None, inventory=None, price=None, seller_username=None, category_slug=None,
-               off_percent=None, new_slug=None):
+               off_percent=None, new_slug=None, colors=None, features=None):
         if category_slug is not None:
-            category = Category.objects.get(slug=category_slug)
+            category = Category.objects.filter(slug=slug)
+            if not category.exists():
+                raise Exception("There is no category with this slug to be a parent.")
+            category = category.first()
         else:
             category = None
         if seller_username is not None:
             seller = User.objects.get(username=seller_username)
         else:
             seller = None
-
+        if not Product.objects.filter(slug=slug).exists():
+            raise Exception("A product with this name does not already exists")
         product = Product.objects.get(slug=slug)
         product.title = title if title is not None else product.title
         product.inventory = inventory if inventory is not None else product.inventory
@@ -227,6 +247,19 @@ class UpdateProductMutation(graphene.Mutation):
         product.slug = new_slug if new_slug is not None else product.slug
         product.off_percent = off_percent if off_percent is not None else product.off_percent
 
+        if colors is not None:
+            colors_obj = []
+            for color in colors:
+                obj, created = ProductColor.objects.get_or_create(color=color['color'])
+                colors_obj.append(obj)
+            product.colors.set(colors_obj)
+
+        if features is not None:
+            ProductFeature.objects.filter(product=product).delete()
+            for feature in features:
+                ProductFeature.objects.get_or_create(product=product, name=feature['name'], value=feature['value'])
+
+        # NOTE: Fix for images
         product.save()
         return CreateProductMutation(product=product, success=True)
 
@@ -240,8 +273,10 @@ class DeleteProductMutation(graphene.Mutation):
     @staticmethod
     @admin_required
     def mutate(root, info, slug):
-        product = Product.objects.get(slug=slug)
-        product.delete()
+        product = Product.objects.filter(slug=slug)
+        if not product.exists():
+            raise Exception('There is no product with this slug')
+        product.first().delete()
         return DeleteCategoryMutation(success=True)
 
 

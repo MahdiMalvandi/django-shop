@@ -10,17 +10,15 @@ def user_profile_upload_path(instance, filename):
 
 
 class CustomUserManager(UserManager):
-    def create_user(self, phone_number, username, password=None, **extra_fields):
+    def create_user(self, phone_number, username=None, password=None, **extra_fields):
         if not phone_number:
             raise ValueError('The Phone Number field must be set')
-        if not username:
-            raise ValueError('The Username field must be set')
         user = self.model(phone_number=phone_number, username=username, **extra_fields)
         user.set_password(password)
         user.save(using=self._db)
         return user
 
-    def create_superuser(self, phone_number, username, password=None, **extra_fields):
+    def create_superuser(self, phone_number, username=None, password=None, **extra_fields):
         extra_fields.setdefault('is_staff', True)
         extra_fields.setdefault('is_superuser', True)
 
@@ -44,6 +42,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     profile = models.ImageField(upload_to=user_profile_upload_path, blank=True, null=True)
     date_joined = models.DateTimeField('date joined', default=timezone.now)
     date_of_birth = models.DateTimeField(null=True, blank=True)
+    username = models.CharField(unique=True, blank=True, null=True)
     bio = models.TextField(null=True, blank=True)
     is_staff = models.BooleanField(default=False)
     is_seller = models.BooleanField(default=False)
@@ -73,3 +72,8 @@ class User(AbstractBaseUser, PermissionsMixin):
                        TrigramSimilarity('first_name', query) +
                        TrigramSimilarity('last_name', query)
         ).filter(similarity__gt=0.1).order_by('-similarity')
+
+    def save(self, *args, **kwargs):
+        if not self.username:
+            self.username = f'{self.first_name}_{self.last_name}_{self.id}'
+        super().save(*args, **kwargs)

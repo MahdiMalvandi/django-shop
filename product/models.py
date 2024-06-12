@@ -66,7 +66,7 @@ class ProductFeature(models.Model):
 
 class ProductColor(models.Model):
     color = models.CharField(max_length=255)
-    product = models.ForeignKey(Product, related_name='colors', on_delete=models.CASCADE)
+    product = models.ManyToManyField(Product, related_name='colors')
 
 
 class Comment(models.Model):

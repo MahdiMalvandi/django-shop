@@ -21,6 +21,7 @@ class UserType(DjangoObjectType):
             "first_name": ("icontains", "startswith", 'istartswith', "contains"),
             "last_name": ("icontains", "istartswith", 'startswith', "contains"),
             "phone_number": ("icontains", "istartswith", 'startswith', "contains"),
+            "username": ("icontains", "istartswith", 'startswith', "contains"),
             "bio": ("icontains", "istartswith", 'startswith', "contains"),
             "email": ("icontains", "istartswith", 'startswith', "contains"),
             "date_joined": ("gt", "lt"),
@@ -36,7 +37,7 @@ class UserType(DjangoObjectType):
 
 class UserQuery(graphene.ObjectType):
     users = DjangoFilterPaginateListField(UserType, pagination=LimitOffsetGraphqlPagination())
-    user = graphene.Field(UserType, id=graphene.Int())
+    user = graphene.Field(UserType, username=graphene.String())
 
     @admin_required
     @staticmethod
@@ -54,12 +55,13 @@ class UserRegisterMutation(graphene.Mutation):
         last_name = graphene.String()
         password = graphene.String()
         phone_number = graphene.String()
+        username = graphene.String(required=False)
         email = graphene.String(required=False)
 
     user = graphene.Field(UserType)
     success = graphene.Boolean(default_value=False)
 
-    def mutate(root, info, password, phone_number, first_name, last_name, email=None):
+    def mutate(root, info, password, phone_number, first_name, last_name, email=None, username=None):
         try:
             User.objects.get(phone_number=phone_number)
             raise GraphQLError('A user with this information already exists')
@@ -67,6 +69,7 @@ class UserRegisterMutation(graphene.Mutation):
             user_instance = User.objects.create_user(phone_number=phone_number, password=password)
             user_instance.first_name = first_name
             user_instance.last_name = last_name
+            user_instance.username = username
             user_instance.email = email
             success = True
             # send code to user
