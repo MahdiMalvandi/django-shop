@@ -1,4 +1,6 @@
 from django.db import models
+from django.db.models import Avg
+
 from user.models import User
 import json
 
@@ -52,6 +54,14 @@ class Product(models.Model):
             self.new_price = self.price
         super(Product, self).save(*args, **kwargs)
 
+    def __str__(self):
+        return self.title
+
+
+    def average_rating(self):
+        average = round(self.comments.aggregate(Avg('rate')).get('rate__avg'), 1)
+        return average if average is not None else 0
+
 
 class Image(models.Model):
     file = models.ImageField(upload_to=image_profile_upload_path)
@@ -70,7 +80,7 @@ class ProductColor(models.Model):
 
 
 class Comment(models.Model):
-    star_field = (
+    rate_field = (
         (1, 1),
         (2, 2),
         (3, 3),
@@ -79,7 +89,7 @@ class Comment(models.Model):
     )
     title = models.CharField(max_length=255)
     content = models.TextField(max_length=500)
-    star = models.IntegerField(choices=star_field)
+    rate = models.IntegerField(choices=rate_field)
     product = models.ForeignKey(Product, related_name='comments', on_delete=models.CASCADE)
     user = models.ForeignKey(User, related_name='comments', on_delete=models.CASCADE)
     created = models.DateTimeField(auto_now_add=True)

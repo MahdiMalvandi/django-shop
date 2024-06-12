@@ -168,7 +168,7 @@ AUTHENTICATION_BACKENDS = [
 
 GRAPHENE_DJANGO_EXTRAS = {
     'DEFAULT_PAGINATION_CLASS': 'graphene_django_extras.paginations.LimitOffsetGraphqlPagination',
-    'DEFAULT_PAGE_SIZE': 2,
+    'DEFAULT_PAGE_SIZE': 20,
     'MAX_PAGE_SIZE': 50,
     'CACHE_ACTIVE': True,
     'CACHE_TIMEOUT': 300  #

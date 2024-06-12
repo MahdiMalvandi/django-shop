@@ -1,7 +1,9 @@
 import graphene
+from graphene import relay
 from graphene_django import DjangoObjectType
 from graphene_django_extras import DjangoFilterPaginateListField
 from graphene_django_extras.paginations import LimitOffsetGraphqlPagination
+from django.db.models.functions import Round
 from graphene_file_upload.scalars import Upload
 
 from .models import *
@@ -43,7 +45,7 @@ class CommentType(DjangoObjectType):
     class Meta:
         model = Comment
         fields = (
-            'title', 'content', 'star', 'positive_points', 'negative_points', 'user', 'product', 'likesOrDislikes')
+            'title', 'content', 'rate', 'positive_points', 'negative_points', 'user', 'product', 'likesOrDislikes')
 
 
 class ProductColorsType(DjangoObjectType):
@@ -59,8 +61,11 @@ class CategoryType(DjangoObjectType):
 
 
 class ProductType(DjangoObjectType):
+    average_rating = graphene.Float()
+
     class Meta:
         model = Product
+        interface = (relay.Node,)
         fields = '__all__'
         filter_fields = {
             "id": ("exact",),
@@ -72,6 +77,9 @@ class ProductType(DjangoObjectType):
             "seller__id": ("exact",),
             "category__name": ("icontains", "startswith", "istartswith", "contains")
         }
+
+    def resolve_average_rating(self, info):
+        return self.average_rating
 
 
 # endregion object types
@@ -88,6 +96,7 @@ class ColorInput(graphene.InputObjectType):
 
 # endregion object types
 
+# region mutations
 class CategoryMutation(graphene.Mutation):
     class Arguments:
         name = graphene.String(required=True)
@@ -280,17 +289,23 @@ class DeleteProductMutation(graphene.Mutation):
         return DeleteCategoryMutation(success=True)
 
 
+# endregion
+
 class Query(graphene.ObjectType):
     categories = graphene.List(CategoryType)
     category = graphene.Field(CategoryType, slug=graphene.String())
-    products = DjangoFilterPaginateListField(ProductType, pagination=LimitOffsetGraphqlPagination())
+    products = DjangoFilterPaginateListField(ProductType, pagination=LimitOffsetGraphqlPagination(),
+                                             orderBy=graphene.List(of_type=graphene.String))
     product = graphene.Field(ProductType, slug=graphene.String())
 
     def resolve_categories(parent, info, **kwargs):
         return Category.objects.select_related('parent').all()
 
-    def resolve_products(parent, info, **kwargs):
-        return Product.objects.select_related('seller', 'category').all()
+    def resolve_products(parent, info, orderBy=None, **kwargs):
+        queryset = Product.objects.select_related('seller', 'category').annotate(average_rating=Round(Avg('comments__rate'), 1))
+        if orderBy:
+            return queryset.order_by(*orderBy)
+        return queryset
 
     def resolve_categoriy(parent, info, **kwargs):
         slug = kwargs.get("slug")
