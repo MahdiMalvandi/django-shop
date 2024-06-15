@@ -34,6 +34,8 @@ class UserType(DjangoObjectType):
             "products__off_percent": ("gt", "lt"),
         }
 
+    def resolve_profile(self, info, **kwargs):
+        return info.context.build_absolute_uri(self.profile.url)
 
 class UserQuery(graphene.ObjectType):
     users = DjangoFilterPaginateListField(UserType, pagination=LimitOffsetGraphqlPagination())
@@ -58,7 +60,7 @@ class UserRegisterMutation(graphene.Mutation):
         username = graphene.String(required=False)
         email = graphene.String(required=False)
 
-    user = graphene.Field(UserType)
+    token = graphene.String(required=True)
     success = graphene.Boolean(default_value=False)
 
     def mutate(root, info, password, phone_number, first_name, last_name, email=None, username=None):
@@ -72,8 +74,9 @@ class UserRegisterMutation(graphene.Mutation):
             user_instance.username = username
             user_instance.email = email
             success = True
-            # send code to user
-        return UserRegisterMutation(user=user_instance, success=success)
+            user_instance.save()
+            token = get_token(user_instance)  # Gen
+        return UserRegisterMutation(token=token, success=success)
 
 
 class UserLoginMutation(graphene.Mutation):
