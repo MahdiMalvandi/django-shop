@@ -48,6 +48,8 @@ INSTALLED_APPS = [
     'product',
     'cart',
     'ticket',
+    'discount_code',
+    "silk",
 
 ]
 
@@ -59,6 +61,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'silk.middleware.SilkyMiddleware',
 ]
 
 ROOT_URLCONF = 'django_shop.urls'
