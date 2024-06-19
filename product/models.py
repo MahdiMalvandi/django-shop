@@ -57,7 +57,6 @@ class Product(models.Model):
     def __str__(self):
         return self.title
 
-
     def average_rating(self):
         average = round(self.comments.aggregate(Avg('rate')).get('rate__avg'), 1)
         return average if average is not None else 0
@@ -97,12 +96,20 @@ class Comment(models.Model):
 
 class CommentLikesOrDislikes(models.Model):
     like_choice = (
-        ('0', 'liked'),
-        ('1', 'disliked')
+        ('liked', 'liked'),
+        ('disliked', 'disliked')
     )
-    user = models.ForeignKey(User, related_name='likesOrDislikes', on_delete=models.CASCADE)
-    comment = models.ForeignKey(Comment, related_name='likesOrDislikes', on_delete=models.CASCADE)
+    user = models.ForeignKey(User, related_name='likes_or_dislikes', on_delete=models.CASCADE)
+    comment = models.ForeignKey(Comment, related_name='likes_or_dislikes', on_delete=models.CASCADE)
     content = models.CharField(choices=like_choice)
+
+    def save(self, *args, **kwargs):
+        try:
+            obj = CommentLikesOrDislikes.objects.get(user=self.user)
+            obj.delete()
+        except CommentLikesOrDislikes.DoesNotExist:
+            pass
+        super().save(*args, **kwargs)
 
 
 class PositivePoints(models.Model):

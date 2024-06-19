@@ -31,9 +31,6 @@ class CreateTicketMutation(graphene.Mutation):
 
     @login_required
     def mutate(self, info, content, title):
-        exist_chat = Chat.objects.filter(creator=info.context.user, title=title)
-        if exist_chat.exists():
-            raise Exception('A chat with this data already exists')
         chat = Chat.objects.create(creator=info.context.user, title=title)
         message = Message.objects.create(user=info.context.user, content=content, chat=chat)
         return CreateTicketMutation(success=True, chat=chat)
@@ -47,10 +44,10 @@ class CloseTicketMutation(graphene.Mutation):
 
     @admin_required
     def mutate(self, info, id):
-        exist_chat = Chat.objects.filter(id=id)
-        if not exist_chat.exists():
+        try:
+            chat = Chat.objects.get(id=id)
+        except Chat.DoesNotExist:
             raise Exception('A chat with this data does not already exists')
-        chat = exist_chat.first()
         if not chat.is_open:
             raise Exception("The chat must be opened")
         chat.is_open = False
@@ -68,11 +65,13 @@ class CreateMessageMutation(graphene.Mutation):
     chat = graphene.Field(ChatObjectType, required=False)
 
     def mutate(self, info, chat, content):
-        chats = Chat.objects.filter(id=chat)
-        if not chats.exists():
+        try:
+            current_chat = Chat.objects.get(id=id)
+        except Chat.DoesNotExist:
             raise Exception('A chat with this data does not already exists')
-        current_chat = chats.first()
         user = info.context.user
+        if not current_chat.is_open:
+            raise Exception('the chat is closed')
         if not user.is_staff and not user == current_chat.creator:
             raise Exception("You must be an admin to reply to messages or you must be the creator of this chat")
         message = Message.objects.create(content=content, user=user, chat=current_chat)
@@ -87,10 +86,10 @@ class OpenTicketMutation(graphene.Mutation):
 
     @admin_required
     def mutate(self, info, id):
-        exist_chat = Chat.objects.filter(id=id)
-        if not exist_chat.exists():
+        try:
+            chat = Chat.objects.get(id=id)
+        except Chat.DoesNotExist:
             raise Exception('A chat with this data does not already exists')
-        chat = exist_chat.first()
         if chat.is_open:
             raise Exception("The chat must be closed")
         chat.is_open = True
@@ -111,10 +110,11 @@ class Query(graphene.ObjectType):
             return Chat.objects.select_related('creator').filter(creator=info.context.user)
 
     def resolve_chat(self, info, id):
-        chat = Chat.objects.select_related('creator').filter(id=id)
-        if chat.exists():
-            return chat.first()
-        raise Exception('There is no such chat with this id')
+        try:
+            chat = Chat.objects.select_related('creator').get(id=id)
+            return chat
+        except Chat.DoesNotExist:
+            Exception('There is no such chat with this id')
 
 
 class Mutation(graphene.ObjectType):

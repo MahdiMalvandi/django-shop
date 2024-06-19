@@ -5,6 +5,7 @@ from graphene_django_extras import DjangoFilterPaginateListField
 from graphene_django_extras.paginations import LimitOffsetGraphqlPagination
 from django.db.models.functions import Round
 from graphene_file_upload.scalars import Upload
+from graphql_jwt.decorators import login_required
 
 from .models import *
 from utils.permissions import admin_required
@@ -18,6 +19,7 @@ class ProductImagesType(DjangoObjectType):
     url = graphene.String()
 
     def resolve_url(self, info):
+        """ returning the product images url """
         if self.file:
             return info.context.build_absolute_uri(self.file.url)
         return None
@@ -27,6 +29,12 @@ class ProductFeaturesType(DjangoObjectType):
     class Meta:
         model = ProductFeature
         fields = ('name', 'value')
+
+
+class CommentLikesOrDislikesType(DjangoObjectType):
+    class Meta:
+        model = CommentLikesOrDislikes
+        fields = ["user", "comment", "content"]
 
 
 class PositivePointsType(DjangoObjectType):
@@ -45,7 +53,7 @@ class CommentType(DjangoObjectType):
     class Meta:
         model = Comment
         fields = (
-            'title', 'content', 'rate', 'positive_points', 'negative_points', 'user', 'product', 'likesOrDislikes')
+            'title', 'content', 'rate', 'positive_points', 'negative_points', 'user', 'product', 'likes_or_dislikes')
 
 
 class ProductColorsType(DjangoObjectType):
@@ -107,6 +115,7 @@ class CategoryMutation(graphene.Mutation):
 
     @admin_required
     def mutate(self, info, name, parent=None):
+        # validate category and create
         if Category.objects.filter(name=name).exists():
             raise Exception("A category with this name already exists")
         instance = Category.objects.create(name=name, parent=parent)
@@ -127,9 +136,12 @@ class UpdateCategoryMutation(graphene.Mutation):
     @staticmethod
     @admin_required
     def mutate(root, info, slug, name=None, parent_slug=None, new_slug=None):
-        if not Category.objects.filter(slug=slug).exists():
+        # validate
+        try:
+            category = Category.objects.get(slug=slug)
+        except Category.DoesNotExist:
             raise Exception("A category with this slug does not already exists")
-        instance = Category.objects.get(slug=slug)
+        instance = category
         instance.slug = new_slug if new_slug is not None else instance.slug
         instance.name = name if name is not None else instance.name
         if parent_slug is not None:
@@ -166,7 +178,6 @@ class CreateProductMutation(graphene.Mutation):
         inventory = graphene.Int(required=True)
         price = graphene.Int(required=True)
         off_percent = graphene.Int(required=False)
-        seller_username = graphene.String(required=True)
         category_slug = graphene.String(required=True)
         images = graphene.List(Upload, required=False)
         features = graphene.List(FeatureInput, required=False)
@@ -177,14 +188,18 @@ class CreateProductMutation(graphene.Mutation):
 
     @staticmethod
     @admin_required
-    def mutate(parent, info, title, inventory, price, seller_username, category_slug, images=None, features=None,
+    def mutate(parent, info, title, inventory, price, category_slug, images=None, features=None,
                colors=None, off_percent=None, ):
-        if not Category.objects.filter(slug=category_slug).exists():
-            raise Exception("A category with this name does not already exists")
-        if not User.objects.filter(username=seller_username).exists():
-            raise Exception("A User with this username does not already exists")
-        category = Category.objects.get(slug=category_slug)
-        seller = User.objects.get(username=seller_username)
+        # validate category and get it
+        try:
+            category = Category.objects.get(slug=category_slug)
+        except Category.DoesNotExist:
+            raise Exception("A category with this slug does not already exists")
+
+        # get user
+        seller = info.context.user
+
+        # create product object
         product = Product.objects.create(
             title=title,
             inventory=inventory,
@@ -220,7 +235,6 @@ class UpdateProductMutation(graphene.Mutation):
         inventory = graphene.Int(required=False)
         price = graphene.Int(required=False)
         off_percent = graphene.Int(required=False)
-        seller_username = graphene.String(required=False)
         category_slug = graphene.String(required=False)
         images = graphene.List(Upload, required=False)
         features = graphene.List(FeatureInput, required=False)
@@ -232,26 +246,25 @@ class UpdateProductMutation(graphene.Mutation):
 
     @staticmethod
     @admin_required
-    def mutate(parent, info, slug, title=None, inventory=None, price=None, seller_username=None, category_slug=None,
+    def mutate(parent, info, slug, title=None, inventory=None, price=None, category_slug=None,
                off_percent=None, new_slug=None, colors=None, features=None):
         if category_slug is not None:
-            category = Category.objects.filter(slug=slug)
-            if not category.exists():
-                raise Exception("There is no category with this slug to be a parent.")
-            category = category.first()
+            # validate category and get it
+            try:
+                category = Category.objects.get(slug=category_slug)
+            except Category.DoesNotExist:
+                raise Exception("A category with this slug does not already exists")
         else:
             category = None
-        if seller_username is not None:
-            seller = User.objects.get(username=seller_username)
-        else:
-            seller = None
-        if not Product.objects.filter(slug=slug).exists():
-            raise Exception("A product with this name does not already exists")
-        product = Product.objects.get(slug=slug)
+
+        # validate product and get it
+        try:
+            product = Product.objects.get(slug=slug)
+        except Product.DoesNotExist:
+            raise Exception("A product with this slug does not already exists")
         product.title = title if title is not None else product.title
         product.inventory = inventory if inventory is not None else product.inventory
         product.price = price if price is not None else product.price
-        product.seller = seller if seller is not None else product.seller
         product.category = category if category is not None else product.category
         product.slug = new_slug if new_slug is not None else product.slug
         product.off_percent = off_percent if off_percent is not None else product.off_percent
@@ -282,11 +295,157 @@ class DeleteProductMutation(graphene.Mutation):
     @staticmethod
     @admin_required
     def mutate(root, info, slug):
-        product = Product.objects.filter(slug=slug)
-        if not product.exists():
+        try:
+            product = Product.objects.get(slug=slug)
+        except Product.DoesNotExist:
             raise Exception('There is no product with this slug')
-        product.first().delete()
+        product.delete()
         return DeleteCategoryMutation(success=True)
+
+
+class CreateCommentMutation(graphene.Mutation):
+    class Arguments:
+        content = graphene.String(required=True)
+        title = graphene.String(required=True)
+        positive_points = graphene.List(graphene.String, required=False)
+        negative_points = graphene.List(graphene.String, required=False)
+        product_slug = graphene.String(required=True)
+        rate = graphene.Int(required=True)
+
+    comment = graphene.Field(CommentType)
+    success = graphene.Boolean(default_value=False)
+
+    @login_required
+    def mutate(self, info, content, title, product_slug, rate, positive_points=None, negative_points=None):
+        user = info.context.user
+
+        # get product
+        try:
+            product = Product.objects.get(slug=product_slug)
+        except Product.DoesNotExist:
+            raise Exception('a product with this slug does not exist')
+
+        # validation rate
+        rate_choice = [1, 2, 3, 4, 5]
+        if rate not in rate_choice:
+            raise Exception('rate must be an integer between 1 and 5')
+
+        # create comment object
+        obj = Comment.objects.create(content=content, product=product, rate=rate, user=user, title=title)
+
+        # create positive points
+        if positive_points is not None:
+            for point in positive_points:
+                PositivePoints.objects.create(comment=obj, content=point)
+
+        # create negative points
+        if negative_points is not None:
+            for point in negative_points:
+                NegativePoints.objects.create(comment=obj, content=point)
+        return CreateCommentMutation(success=True, comment=obj)
+
+
+class UpdateCommentMutation(graphene.Mutation):
+    class Arguments:
+        content = graphene.String(required=False)
+        title = graphene.String(required=False)
+        id = graphene.Int(required=True)
+        positive_points = graphene.List(graphene.String, required=False)
+        negative_points = graphene.List(graphene.String, required=False)
+        product_slug = graphene.String(required=False)
+        rate = graphene.Int(required=False)
+
+    comment = graphene.Field(CommentType)
+    success = graphene.Boolean(default_value=False)
+
+    @admin_required
+    def mutate(self, info, id, content=None, title=None, product_slug=None, rate=None, positive_points=None,
+               negative_points=None):
+        # validation rate
+        if rate is not None:
+            rate_choice = [1, 2, 3, 4, 5]
+            if rate not in rate_choice:
+                raise Exception('rate must be an integer between 1 and 5')
+
+        # get product
+        if product_slug is not None:
+            try:
+                product = Product.objects.get(slug=product_slug)
+            except Product.DoesNotExist:
+                raise Exception('a product with this slug does not exist')
+        else:
+            product = None
+
+        # create comment object
+        try:
+            comment = Comment.objects.get(id=id)
+        except Comment.DoesNotExist:
+            raise Exception('a comment with this id does not exist')
+
+        # create positive points
+        if positive_points is not None:
+            comment.positive_points.all().delete()
+            for point in positive_points:
+                PositivePoints.objects.get_or_create(comment=comment, content=point)
+
+        # create negative points
+        if negative_points is not None:
+            comment.negative_points.all().delete()
+            for point in negative_points:
+                NegativePoints.objects.get_or_create(comment=comment, content=point)
+
+        # update comment fields
+        comment.title = title if title is not None else comment.title
+        comment.content = content if content is not None else comment.content
+        comment.product = product if product is not None else comment.product
+        comment.save()
+        return UpdateCommentMutation(success=True, comment=comment)
+
+
+class DeleteCommentMutation(graphene.Mutation):
+    class Arguments:
+        id = graphene.Int(required=True)
+
+    success = graphene.Boolean(default_value=False)
+
+    @staticmethod
+    @admin_required
+    def mutate(root, info, id):
+        try:
+            comment = Comment.objects.get(id=id)
+        except Comment.DoesNotExist:
+            raise Exception('There is no comment with this id')
+        comment.delete()
+        return DeleteCommentMutation(success=True)
+
+
+class LikeOrDislikeCommentMutation(graphene.Mutation):
+    class Arguments:
+        content = graphene.String(required=True)
+        comment_id = graphene.Int(required=True)
+
+    success = graphene.Boolean(default_value=False)
+    object = graphene.Field(CommentLikesOrDislikesType)
+
+    @login_required
+    def mutate(root, info, comment_id, content):
+        # validate content
+        like_dislike_word = ['liked', 'disliked']
+        if content.lower() not in like_dislike_word:
+            raise Exception('content must be "liked" or "disliked"')
+
+        # get the comment
+        try:
+            comment = Comment.objects.get(id=comment_id)
+        except Comment.DoesNotExist:
+            raise Exception('There is no comment with this id')
+
+        # get user
+        user = info.context.user
+
+        # create like or dislike object
+        obj = CommentLikesOrDislikes.objects.create(user=user, content=content.lower(), comment=comment)
+        return LikeOrDislikeCommentMutation(success=True, object=obj)
 
 
 # endregion
@@ -302,7 +461,8 @@ class Query(graphene.ObjectType):
         return Category.objects.select_related('parent').all()
 
     def resolve_products(parent, info, orderBy=None, **kwargs):
-        queryset = Product.objects.select_related('seller', 'category').annotate(average_rating=Round(Avg('comments__rate'), 1))
+        queryset = Product.objects.select_related('seller', 'category').annotate(
+            average_rating=Round(Avg('comments__rate'), 1))
         if orderBy:
             return queryset.order_by(*orderBy)
         return queryset
@@ -335,3 +495,7 @@ class Mutation(graphene.ObjectType):
     create_category = CategoryMutation.Field()
     update_category = UpdateCategoryMutation.Field()
     delete_category = DeleteCategoryMutation.Field()
+    create_comment = CreateCommentMutation.Field()
+    update_comment = UpdateCommentMutation.Field()
+    delete_comment = DeleteCommentMutation.Field()
+    like_or_dislike_comment = LikeOrDislikeCommentMutation.Field()

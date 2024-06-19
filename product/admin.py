@@ -52,7 +52,7 @@ class ProductAdmin(admin.ModelAdmin):
 
 @admin.register(Comment)
 class CommentAdmin(admin.ModelAdmin):
-    list_display = ['title', 'created', 'user']
+    list_display = ['title', 'created', 'user', 'id']
     inlines = [CommentLikesOrDislikesInline, PositivePointsInline, NegativePointsInline]
 
 
