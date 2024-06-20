@@ -56,7 +56,6 @@ class Cart:
         return sum(item['quantity'] for item in self.cart.values())
 
     def save(self):
-        print(self.cart)
         self.session.modified = True
 
     def clear(self):
