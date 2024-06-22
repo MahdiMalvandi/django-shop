@@ -3,6 +3,8 @@ import graphql_jwt
 from graphene_django_extras import DjangoFilterPaginateListField, LimitOffsetGraphqlPagination
 from graphql import GraphQLError
 from graphene_django.types import DjangoObjectType
+from graphql_jwt.decorators import login_required
+
 from .models import *
 from django.core.cache import cache
 
@@ -36,19 +38,6 @@ class UserType(DjangoObjectType):
 
     def resolve_profile(self, info, **kwargs):
         return info.context.build_absolute_uri(self.profile.url)
-
-class UserQuery(graphene.ObjectType):
-    users = DjangoFilterPaginateListField(UserType, pagination=LimitOffsetGraphqlPagination())
-    user = graphene.Field(UserType, username=graphene.String())
-
-    @admin_required
-    @staticmethod
-    def resolve_users(root, info, **kwargs):
-        return User.objects.all()
-
-    @staticmethod
-    def resolve_user(root, info, id, **kwargs):
-        return User.objects.get(id=id)
 
 
 class UserRegisterMutation(graphene.Mutation):
@@ -156,6 +145,32 @@ class VerificationCodeMutation(graphene.Mutation):
                 raise GraphQLError(checking_code['error'])
         else:
             raise GraphQLError('codeLocation must be "email" or "sms"')
+
+
+class Query(graphene.ObjectType):
+    users = DjangoFilterPaginateListField(UserType, pagination=LimitOffsetGraphqlPagination())
+    user_profile = graphene.Field(UserType)
+    admin_user = graphene.Field(UserType, username=graphene.String())
+
+    @admin_required
+    @staticmethod
+    def resolve_users(root, info, **kwargs):
+        return User.objects.all()
+
+    @login_required
+    @staticmethod
+    def resolve_user_profile(root, info, **kwargs):
+        return info.context.user
+
+
+    @admin_required
+    def resolve_admin_user(self, info, username: str, **kwargs):
+        try:
+            user = User.objects.get(username=username)
+        except User.DoesNotExist:
+            raise Exception("User does not exist")
+        return user
+
 
 
 class Mutation(graphene.ObjectType):

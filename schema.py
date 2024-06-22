@@ -7,7 +7,7 @@ import discount_code.schema
 import order.schema
 
 
-class Query(product.schema.Query, user.schema.UserQuery, cart.schema.Query, ticket.schema.Query,
+class Query(product.schema.Query, user.schema.Query, cart.schema.Query, ticket.schema.Query,
             discount_code.schema.Query, order.schema.Query):
     pass
 

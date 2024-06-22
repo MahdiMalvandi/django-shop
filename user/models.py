@@ -47,6 +47,11 @@ class User(AbstractBaseUser, PermissionsMixin):
     is_staff = models.BooleanField(default=False)
     is_seller = models.BooleanField(default=False)
     is_superuser = models.BooleanField(default=False)
+    address = models.CharField(max_length=250, null=True, blank=True)
+    postal_code = models.CharField(max_length=10, null=True, blank=True)
+    province = models.CharField(max_length=50, null=True, blank=True)
+    city = models.CharField(max_length=50, null=True, blank=True)
+
 
     USERNAME_FIELD = 'phone_number'
 
