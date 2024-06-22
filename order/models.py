@@ -13,6 +13,8 @@ class Order(models.Model):
     postal_code = models.CharField(max_length=10)
     province = models.CharField(max_length=50)
     city = models.CharField(max_length=50)
+    price = models.PositiveIntegerField(null=True, blank=True)
+    discount_code = models.CharField(null=True, blank=True)
 
 
 class OrderItem(models.Model):

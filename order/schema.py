@@ -31,7 +31,6 @@ class CreateOrderMutation(graphene.Mutation):
     order = graphene.Field(OrderObjectType, required=False)
     success = graphene.Boolean(required=False, default_value=False)
 
-
     def mutate(self, info, address, postal_code, province, city):
         # get user
         user = info.context.user
@@ -41,7 +40,8 @@ class CreateOrderMutation(graphene.Mutation):
 
         # create order
         if len(cart) > 0:
-            order = Order.objects.create(user=user, address=address, postal_code=postal_code, province=province, city=city)
+            order = Order.objects.create(user=user, address=address, postal_code=postal_code, province=province,
+                                         city=city, price=cart.get_total_price())
 
             # create order items
             for item in cart:
@@ -53,6 +53,8 @@ class CreateOrderMutation(graphene.Mutation):
             raise Exception('There is no products in cart')
         info.context.session['order_id'] = order.id
         return CreateOrderMutation(order=order, success=True)
+
+
 # endregion mutations
 
 class Query(graphene.ObjectType):

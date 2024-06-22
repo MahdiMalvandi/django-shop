@@ -45,15 +45,21 @@ class CartInfoType(graphene.ObjectType):
 class AddProductToCartMutation(graphene.Mutation):
     class Arguments:
         product_slug = graphene.String(required=True)
+        quantity = graphene.Int(required=False, default_value=1)
 
     cart_data = graphene.Field(CartInfoType)
     success = graphene.Boolean(default_value=False)
 
     @staticmethod
-    def mutate(root, info, product_slug):
-        product = Product.objects.get(slug=product_slug)
+    def mutate(root, info, product_slug, quantity=1):
+        try:
+            product = Product.objects.get(slug=product_slug)
+        except Product.DoesNotExist:
+            raise Exception('product does not exists')
         user_cart = Cart(info.context.session)
-        user_cart.add(product)
+        if quantity > product.inventory:
+            raise Exception('Quantity must be less than inventory')
+        user_cart.add(product, quantity=quantity)
         return AddProductToCartMutation(cart_data=show_cart(user_cart), success=True)
 
 

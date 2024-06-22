@@ -25,12 +25,12 @@ class Cart:
             cart = self.session['cart'] = {}
         self.cart = cart
 
-    def add(self, product):
+    def add(self, product, quantity=1):
 
         product_id = str(product.id)
 
         if product_id not in self.cart:
-            self.cart[product_id] = {'quantity': 1, 'new_price': product.new_price}
+            self.cart[product_id] = {'quantity': quantity, 'new_price': product.new_price}
         else:
             if self.cart[product_id]['quantity'] < product.inventory:
                 self.cart[product_id]['quantity'] += 1

@@ -1,9 +1,15 @@
 import random
 import string
+
+from django.db.models import Sum
+from django.db.models.functions import Now
 from django.utils.timezone import now
 
 import graphene
+from graphql_jwt.decorators import login_required
 
+from order.models import Order
+from order.schema import OrderObjectType
 from graphene_django.types import DjangoObjectType
 from .models import DiscountCode
 from utils.permissions import admin_required
@@ -17,7 +23,7 @@ class DiscountCodeType(DjangoObjectType):
         fields = "__all__"
 
     def resolve_is_expired(self, info):
-        if self.expiration_date<now():
+        if self.expiration_date < now():
             return True
         else:
             return False
@@ -81,6 +87,84 @@ class DeleteDiscountCode(graphene.Mutation):
         return UpdateDiscountCode(success=True)
 
 
+class ApplyDiscountCode(graphene.Mutation):
+    class Arguments:
+        code = graphene.String(required=True)
+
+    success = graphene.Boolean(default_value=False, required=False)
+    order = graphene.Field(OrderObjectType, required=False)
+
+    @login_required
+    def mutate(self, info, code):
+        # getting order id from user session
+        order_id = info.context.session.get('order_id')
+
+        # getting order obj from order model
+        try:
+            order = Order.objects.get(id=order_id)
+        except Order.DoesNotExist:
+            raise Exception('Order does not found')
+
+        # getting discount code from model
+        try:
+            code_obj = DiscountCode.objects.get(code=code)
+        except DiscountCode.DoesNotExist:
+            raise Exception('Code doesnt exists')
+
+        if code_obj.is_used:
+            raise Exception('The code already has been used')
+
+        if code_obj.expiration_date < now():
+            raise Exception('The code is expired')
+
+        # calculate new price
+        new_price = order.price - ((code_obj.percent * order.price) // 100)
+
+        code_obj.is_used = True
+        order.price = new_price
+        order.discount_code = code_obj.code
+
+        code_obj.save()
+        order.save()
+        return ApplyDiscountCode(order=order, success=True)
+
+
+class DeleteDiscountCodeFromOrder(graphene.Mutation):
+    success = graphene.Boolean(default_value=False, required=False)
+    order = graphene.Field(OrderObjectType, required=False)
+
+    @login_required
+    def mutate(self, info):
+        # getting order id from user session
+        order_id = info.context.session.get('order_id')
+
+        # getting order obj from order model
+        try:
+            order = Order.objects.get(id=order_id)
+        except Order.DoesNotExist:
+            raise Exception('Order does not found')
+
+        if not order.discount_code:
+            raise Exception('Unused code')
+
+        # getting code obj from code model
+        try:
+            code_obj = DiscountCode.objects.get(code=order.discount_code)
+        except DiscountCode.DoesNotExist:
+            raise Exception('Discount code does not found')
+
+        # calculate new price
+        new_price = ((order.price * 100) // (100 - code_obj.percent))
+
+        order.discount_code = None
+        order.price = new_price
+        code_obj.is_used = False
+        code_obj.save()
+        order.save()
+        return DeleteDiscountCodeFromOrder(order=order, success=True)
+
+
+
 class Query(graphene.ObjectType):
     codes = graphene.List(DiscountCodeType, only_unexpired=graphene.Boolean(required=False))
     code = graphene.Field(DiscountCodeType, id=graphene.Int())
@@ -88,7 +172,7 @@ class Query(graphene.ObjectType):
     @admin_required
     def resolve_codes(self, info, only_unexpired=None):
         if only_unexpired:
-            codes = DiscountCode.objects.filter(expiration_date__in=datetime.Now())
+            codes = DiscountCode.objects.filter(expiration_date__in=Now())
         else:
             codes = DiscountCode.objects.all().order_by('expiration_date')
         return codes
@@ -105,3 +189,5 @@ class Mutation(graphene.ObjectType):
     create_code = CreateDiscountCode.Field()
     update_code = UpdateDiscountCode.Field()
     delete_code = DeleteDiscountCode.Field()
+    apply_code = ApplyDiscountCode.Field()
+    delete_discount_code_from_order = DeleteDiscountCodeFromOrder.Field()
