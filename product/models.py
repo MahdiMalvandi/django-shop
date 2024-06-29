@@ -36,6 +36,7 @@ class Product(models.Model):
     new_price = models.IntegerField(blank=True, null=True, default=0)
     created = models.DateTimeField(auto_now_add=True)
     updated = models.DateTimeField(auto_now=True)
+    is_salable = models.BooleanField(default=True)
     seller = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='products')
     category = models.ForeignKey(Category, on_delete=models.SET_NULL, null=True, related_name='products')
 

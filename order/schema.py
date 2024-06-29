@@ -96,6 +96,8 @@ class CreateOrderMutation(graphene.Mutation):
 
             # create order items
             for item in cart:
+                if not item['product'].is_salable:
+                    raise Exception('product is not a salable product')
                 if item['quantity'] > 0:
                     OrderItem.objects.create(order=order, product=item['product'], price=item['new_price'],
                                              quantity=item["quantity"])

@@ -56,6 +56,8 @@ class AddProductToCartMutation(graphene.Mutation):
             product = Product.objects.get(slug=product_slug)
         except Product.DoesNotExist:
             raise Exception('product does not exists')
+        if not product.is_salable:
+            raise Exception('product is not a salable product')
         user_cart = Cart(info.context.session)
         if quantity > product.inventory:
             raise Exception('Quantity must be less than inventory')
