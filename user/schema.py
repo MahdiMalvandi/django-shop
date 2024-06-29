@@ -1,6 +1,7 @@
 import graphene
 import graphql_jwt
 from graphene_django_extras import DjangoFilterPaginateListField, LimitOffsetGraphqlPagination
+from graphene_file_upload.scalars import Upload
 from graphql import GraphQLError
 from graphene_django.types import DjangoObjectType
 from graphql_jwt.decorators import login_required
@@ -38,6 +39,26 @@ class UserType(DjangoObjectType):
 
     def resolve_profile(self, info, **kwargs):
         return info.context.build_absolute_uri(self.profile.url)
+
+
+class UserInputType(graphene.InputObjectType):
+    first_name = graphene.String(required=False)
+    last_name = graphene.String(required=False)
+    email = graphene.String(required=False)
+    phone_number = graphene.String(required=False)
+    profile = graphene.List(Upload, required=False)
+    date_joined = graphene.String(required=False)
+    date_of_birth = graphene.String(required=False)
+    new_username = graphene.String(required=False)
+    bio = graphene.String(required=False)
+    address = graphene.String(required=False)
+    postal_code = graphene.String(required=False)
+    province = graphene.String(required=False)
+    city = graphene.String(required=False)
+
+
+class UserInputTypeAllPermission(UserInputType):
+    is_staff = graphene.String(required=False)
 
 
 class UserRegisterMutation(graphene.Mutation):
@@ -147,21 +168,74 @@ class VerificationCodeMutation(graphene.Mutation):
             raise GraphQLError('codeLocation must be "email" or "sms"')
 
 
+class ChangeUserDataFromAdmin(graphene.Mutation):
+    class Arguments:
+        username = graphene.String(required=True)
+        data = UserInputTypeAllPermission(required=False)
+
+    user = graphene.Field(UserType, required=False)
+    success = graphene.Boolean(required=False, default_value=False)
+
+    @admin_required
+    def mutate(self, info, username, data):
+
+        # get user data
+        try:
+            user = User.objects.get(username=username)
+        except User.DoesNotExist:
+            raise Exception('user does not exist')
+        for key, value in data.items():
+            print(repr(key))
+            if key == "new_username":
+                user.username = value
+            else:
+                setattr(user, key, value)
+
+        if 'new_username' in data:
+            data['username'] = data['new_username']
+            del data['new_username']
+        user.save(update_fields=[*data.keys()])
+
+        return ChangeUserDataFromAdmin(user=user, success=True)
+
+
+class ChangeUserDataFrom(graphene.Mutation):
+    class Arguments:
+        data = UserInputType(required=False)
+
+    user = graphene.Field(UserType, required=False)
+    success = graphene.Boolean(required=False, default_value=False)
+
+    @login_required
+    def mutate(self, info, data):
+        user = info.context.user
+        for key, value in data.items():
+            print(repr(key))
+            if key == "new_username":
+                user.username = value
+            else:
+                setattr(user, key, value)
+
+        if 'new_username' in data:
+            data['username'] = data['new_username']
+            del data['new_username']
+        user.save(update_fields=[*data.keys()])
+
+        return ChangeUserDataFrom(user=user, success=True)
+
+
 class Query(graphene.ObjectType):
     users = DjangoFilterPaginateListField(UserType, pagination=LimitOffsetGraphqlPagination())
     user_profile = graphene.Field(UserType)
     admin_user = graphene.Field(UserType, username=graphene.String())
 
     @admin_required
-    @staticmethod
-    def resolve_users(root, info, **kwargs):
+    def resolve_users(self, info, **kwargs):
         return User.objects.all()
 
     @login_required
-    @staticmethod
-    def resolve_user_profile(root, info, **kwargs):
+    def resolve_user_profile(self, info, **kwargs):
         return info.context.user
-
 
     @admin_required
     def resolve_admin_user(self, info, username: str, **kwargs):
@@ -172,10 +246,11 @@ class Query(graphene.ObjectType):
         return user
 
 
-
 class Mutation(graphene.ObjectType):
     register = UserRegisterMutation.Field()
     login = UserLoginMutation.Field()
     verify_code = VerificationCodeMutation.Field()
     verify_token = graphql_jwt.relay.Verify.Field()
     refresh_token = graphql_jwt.relay.Refresh.Field()
+    admin_edit_user_profile = ChangeUserDataFromAdmin.Field()
+    edit_user_profile = ChangeUserDataFrom.Field()
